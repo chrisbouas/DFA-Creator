@@ -32,7 +32,7 @@ class DFA
         int *terminal; //Stores the ids of all terminal states
         int numOfTerminalStates; //Stores the number of terminal states
         State *currentState; //Pointer to the current state | Used in transition()
-        void transition(char c); //Executes a transition from the current state, to another state, depending one the input
+        void transition(char c); //Executes a transition from the current state, to another state, depending on the input
 };
 
 
