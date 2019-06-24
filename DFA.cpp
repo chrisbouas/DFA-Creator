@@ -33,15 +33,16 @@ bool DFA::isTerminal(int id)
 
 bool DFA::setInitial(int id)
 {
-    if (findpos(id) == -1)
+    int temp = findpos(id);
+    if (temp == -1)
     {
         cout << "Could not find a state with given id" << endl;
         return 0;
     }
 
-    initial = findpos(id);
+    initial = temp;
     cout << id << " is now the initial state" << endl;
-    currentState = states[findpos(id)];
+    currentState = states[initial];
     return 1;
 }
 
@@ -67,9 +68,11 @@ bool DFA::setTerminal(int id)
     }
     temp[i] = id;
 
-    numOfTerminalStates++;
-    terminal = new int[numOfTerminalStates];
+    //deallocate old memory
+    delete[] terminal;
     terminal = temp;
+
+    numOfTerminalStates++;
     cout << id << " is now a final state" << endl;
     return 1;
 }
