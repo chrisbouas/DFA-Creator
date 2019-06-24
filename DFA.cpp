@@ -70,9 +70,10 @@ bool DFA::setTerminal(int id)
 
     //deallocate old memory
     delete[] terminal;
+    numOfTerminalStates++;
+    terminal = new int[numOfTerminalStates];
     terminal = temp;
 
-    numOfTerminalStates++;
     cout << id << " is now a final state" << endl;
     return 1;
 }
