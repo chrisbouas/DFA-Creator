@@ -6,7 +6,7 @@ using namespace std;
 int main()
 {
     DFA re("ab", 2); //regex for language (ab*a)
-    string test = "abbbba";
+    string test = "abxba";
 
     //create states
     re.addState(0); //init
@@ -28,7 +28,11 @@ int main()
     re.setTransition(3,3,'a');
     re.setTransition(3,3,'b');
 
-    cout << "Word \"" << test << "\" is" << (re.testDFA(test)?" ":" not ") << "accepted by DFA." << endl;
+    re.showDFA();
+
+    auto accepted = re.testDFA(test);
+
+    cout << "Word \"" << test << "\" is" << (accepted?" ":" not ") << "accepted by DFA." << endl;
 
     return 0;
 }
