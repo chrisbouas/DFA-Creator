@@ -1,49 +1,48 @@
 #include "DFA.h"
 #include <iostream>
+#include <vector>
+#include <algorithm>
+#include <memory>
 
-DFA::DFA(char* sym, int n)
+using std::cout;
+using std::endl;
+
+DFA::DFA(std::string sym, int n)
+        : numOfSymbols(n), numOfStates(0), initial(-1), numOfTerminalStates(0)
 {
-    states = new State*;
-    numOfStates = 0;
-
-    numOfSymbols = n;
-    DFAsymbols = new char[numOfSymbols];
-    DFAsymbols = sym;
-
-    initial = -1;
-    terminal = NULL;
-    numOfTerminalStates = 0;
-    currentState = NULL;
+    states = std::make_unique<std::vector<std::unique_ptr<State>>>();
+    DFAsymbols = std::make_unique<std::vector<char>>(sym.begin(),sym.end());
+    terminal = std::make_unique<std::vector<int>>();
+    currentState = nullptr;
 }
 
 int DFA::findpos(int id)
 {
-    for (int i=0;i<numOfStates;i++)
-    {
-        if (states[i]->value == id)
-            return i;
+    // Run find with custom comparator
+    auto result = std::find_if(states->cbegin(), states->cend(), [&id](auto& s){return s->value == id;});
+    // If find result is end search was unsuccessful
+    if( result == states->cend()){
+        return -1;
+    }else{
+        return std::distance(states->cbegin(), result);
     }
-    return -1;
 }
 
 int DFA::findchar(char s)
 {
-    for (int i=0;i<numOfSymbols;i++)
-    {
-        if (DFAsymbols[i] == s)
-            return i;
+    auto result = std::find(DFAsymbols->cbegin(), DFAsymbols->cend(), s);
+    // If find result is end iterator search was unsuccessful
+    if( result == DFAsymbols->cend()){
+        return -1;
+    }else{
+        return std::distance(DFAsymbols->cbegin(), result);
     }
-    return -1;
 }
 
 bool DFA::isTerminal(int id)
 {
-    for (int i=0;i<numOfTerminalStates;i++)
-    {
-        if (terminal[i] == id)
-            return 1;
-    }
-    return 0;
+    // Return if id was found in terminal vector
+    return std::find(terminal->cbegin(), terminal->cend(), id) != terminal->cend();
 }
 
 bool DFA::setInitial(int id)
@@ -52,13 +51,13 @@ bool DFA::setInitial(int id)
     if (temp == -1)
     {
         cout << "Could not find a state with given id" << endl;
-        return 0;
+        return false;
     }
 
     initial = temp;
     cout << id << " is now the initial state" << endl;
-    currentState = states[temp];
-    return 1;
+    currentState = states->at(id).get();
+    return true;
 }
 
 bool DFA::setTerminal(int id)
@@ -66,77 +65,47 @@ bool DFA::setTerminal(int id)
     if (findpos(id) == -1)
     {
         cout << "Could not find a state with given id" << endl;
-        return 0;
+        return false;
     }
     else if (isTerminal(id))
     {
         cout << "State is already a terminal state" << endl;
-        return 0;
+        return false;
     }
 
-    int i;
-    int *temp;
-    temp = new int[numOfTerminalStates+1];
-    for (i=0;i<numOfTerminalStates;i++)
-    {
-        temp[i] = terminal[i];
-    }
-    temp[i] = id;
+    terminal->emplace_back(id);
 
-    delete[] terminal;
-    terminal = temp;
     numOfTerminalStates++;
     cout << id << " is now a final state" << endl;
-    return 1;
+    return true;
 }
 
 void DFA::addState(int id)
 {
-    int i;
 
     if (findpos(id) != -1)
-        return;
-
-    State **temp;
-    temp = new State*[numOfStates+1];
-    for (i=0;i<numOfStates;i++)
     {
-        temp[i] = states[i];
+        std::cout << "State with id " << id << "already exists!\n";
+        return;
     }
-    temp[i] = new State(id);
-    delete[] states;
 
+    states->emplace_back(std::make_unique<State>(id));
     numOfStates++;
-    states = new State*[numOfStates];
-    states = temp;
 
-    states[numOfStates-1]->transitions = new int[numOfSymbols];
     cout << "Added state " << id << endl;
 }
 
 void DFA::removeState(int id)
 {
-    int i, j;
+    unsigned elPos = findpos(id);
 
-    if (findpos(id) == -1)
-        return;
-
-    State **temp;
-    temp = new State*[numOfStates-1];
-    j=0;
-    for (i=0;i<numOfStates;i++)
+    if (elPos == -1)
     {
-        if (i != findpos(id))
-        {
-            temp[j] = states[i];
-            j++;
-        }
+        return;
     }
-    delete[] states;
 
-    numOfStates--;
-    states = new State*[numOfStates];
-    states = temp;
+    // Delete element at found position
+    states->erase(states->begin() + elPos);
     cout << "Removed state " << id << endl;
 }
 
@@ -145,32 +114,47 @@ void DFA::setTransition(int id1, int id2, char sym)
     int pos1 = findpos(id1);
     int pos2 = findpos(id2);
     if (pos1 == -1 || pos2 == -1)
+    {
         return;
+    }
 
-    int temp = findchar(sym);
-    if (temp == -1)
+    int charPos = findchar(sym);
+    if (charPos == -1)
+    {
         return;
+    }
 
-    states[pos1]->transitions[temp] = id2;
+    // Get origin state
+    auto& origin = *(states->at(pos1));
+    origin.transitions->emplace(charPos, pos2);
     cout << "Set " << sym << " transition from " << id1 << " to " << id2 << endl;
 }
 
 bool DFA::isDFA()
 {
-    if (initial == -1 || terminal == NULL)
-        return 0;
+    if (initial == -1 || terminal->empty())
+        return false;
 
-    int i,j;
-
-    for (i=0;i<numOfStates;i++)
+    for (int i=0;i<numOfStates;i++)
     {
-        for (j=0;j<numOfSymbols;j++)
+        for (int j=0;j<numOfSymbols;j++)
         {
-            if ((states[i]->transitions[j] < 0) || (states[i]->transitions[j] >= numOfStates))
-                return 0;
+            auto& origin = states->at(i);
+            // If a transition from  state origin with symbol j does not exist
+            if (origin->transitions->find(j) == origin->transitions->end())
+            {
+                return false;
+            }
+            // Check if transition points to a valid state index. Element transitions j exists 
+            // since it was checked before.
+            if(origin->transitions->at(j) >= numOfStates)
+            {
+                return false;
+            }
+            
         }
     }
-    return 1;
+    return true;
 }
 
 void DFA::showDFA()
@@ -181,17 +165,19 @@ void DFA::showDFA()
         return;
     }
 
-    for (int i=0;i<numOfStates;i++)
+    for (auto& state: *states)
     {
-        cout << "State " << states[i]->value << endl;
-        if (states[i]->value == initial)
-            cout << states[i]->value << " is the initial state" << endl;
-        else if (isTerminal(states[i]->value))
-            cout << states[i]->value << " is a terminal state" << endl;
+        // Print state and id
+        cout << "State " << state->value << endl;
+        if (state->value == initial)
+            cout << state->value << " is the initial state" << endl;
+        else if (isTerminal(state->value))
+            cout << state->value << " is a terminal state" << endl;
+
 
         for (int j=0;j<numOfSymbols;j++)
         {
-            cout << states[i]->value << "  -" << DFAsymbols[j] << "->  " << states[i]->transitions[j] << endl;
+            std::cout << state->value << "  -" << DFAsymbols->at(j) << "->  " << state->transitions->at(j) << "\n";
         }
         cout << endl;
     }
@@ -202,27 +188,36 @@ int DFA::findnextstate(State* current, char c)
     int pos = findpos(current->value);
     int temp = findchar(c);
 
-    int next = states[pos]->transitions[temp]; //Result is an id (int)
+    int next  = states->at(pos)->transitions->at(temp); //Result is an id (int)1
     return findpos(next);
 }
 
 void DFA::transition(char c)
 {
-    if (findchar(c) == -1)
-        return;
-
+    // See if character is in the DFT alphabet
+    if (findchar(c) == -1){
+        std::string error{"Invalid character "};
+        error.push_back(c);
+        throw std::invalid_argument(error);
+    }
     int pos = findnextstate(currentState,c);
-    currentState = states[pos];
+    currentState = states->at(pos).get();
 }
 
-bool DFA::testDFA(string s)
+bool DFA::testDFA(std::string s)
 {
-    if (s == "" && isTerminal(currentState->value))
-        return 1;
-    else if (s == "" && !isTerminal(currentState->value))
-        return 0;
+    if (s.empty() && isTerminal(currentState->value))
+        return true;
+    else if (s.empty() && !isTerminal(currentState->value))
+        return false;
 
-    transition(s[0]);
+    // Move to next stage depending on next character
+    try{
+        transition(s[0]);
+    } catch (std::invalid_argument& e) {
+        std::cout << e.what() << "\n";
+        return false;
+    }
     s.erase(s.begin());
     return testDFA(s);
 }
